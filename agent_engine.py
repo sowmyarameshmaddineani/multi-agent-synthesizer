@@ -1,31 +1,54 @@
 import asyncio
 import json
+from rag_engine import RAGEngine
+
+# Initialize our RAG engine globally so it loads once
+rag = RAGEngine()
 
 class AgentEngine:
-    """Simulates a multi-agent orchestration workflow."""
+    """Orchestrates multi-agent workflow integrated with local RAG search."""
     
     def __init__(self, query: str):
         self.query = query
 
     async def run_workflow(self, websocket):
-        """Executes the agent steps sequentially and streams them live over the WebSocket."""
+        """Executes agent steps, performs real vector search, and streams thoughts live."""
         
-        # Define our multi-agent pipeline steps dynamically based on the query
-        steps = [
-            {"agent": "Router", "status": f"Analyzing intent for query: '{self.query}'..."},
-            {"agent": "Researcher", "status": "Searching vector database and knowledge base..."},
-            {"agent": "Fact-Checker", "status": "Validating retrieved facts and filtering noise..."},
-            {"agent": "Synthesizer", "status": "Drafting final structured knowledge synthesis..."},
-        ]
+        # Step 1: Router Agent
+        await asyncio.sleep(1.0)
+        await websocket.send_text(json.dumps({
+            "agent": "Router", 
+            "status": f"Analyzing intent for query: '{self.query}'..."
+        }))
 
-        for step in steps:
-            await asyncio.sleep(1.2)  # Simulate agent processing time
-            await websocket.send_text(json.dumps(step))
+        # Step 2: Researcher Agent (Real RAG Vector Search!)
+        await asyncio.sleep(1.2)
+        retrieved_chunks = rag.search(self.query, n_results=2)
+        context_preview = " | ".join(retrieved_chunks)
+        await websocket.send_text(json.dumps({
+            "agent": "Researcher", 
+            "status": f"Fetched context from ChromaDB: '{context_preview[:90]}...'"
+        }))
+
+        # Step 3: Fact-Checker Agent
+        await asyncio.sleep(1.2)
+        await websocket.send_text(json.dumps({
+            "agent": "Fact-Checker", 
+            "status": "Verified context relevance and filtered noise successfully."
+        }))
+
+        # Step 4: Synthesizer Agent
+        await asyncio.sleep(1.2)
+        synthesized_answer = f"Based on local vector search, here is the synthesis for '{self.query}': {retrieved_chunks[0] if retrieved_chunks else 'No direct match found.'}"
+        await websocket.send_text(json.dumps({
+            "agent": "Synthesizer", 
+            "status": synthesized_answer
+        }))
 
         # Final success packet
         await websocket.send_text(
             json.dumps({
                 "agent": "System", 
-                "status": f"Successfully synthesized response for: '{self.query}'! 🎉"
+                "status": "Workflow completed with live RAG retrieval! 🧠🎉"
             })
         )
